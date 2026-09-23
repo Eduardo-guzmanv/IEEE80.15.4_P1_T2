@@ -563,6 +563,7 @@ void AppThread(osaTaskParam_t argument)
                             gState = stateListen;
                             time_counter =0;
                             counter_state=ON;
+                            LED_TurnOnLed(LED2);
                             OSA_EventSet(mAppEvent, gAppEvtDummyEvent_c); 
                         }        
                         else 

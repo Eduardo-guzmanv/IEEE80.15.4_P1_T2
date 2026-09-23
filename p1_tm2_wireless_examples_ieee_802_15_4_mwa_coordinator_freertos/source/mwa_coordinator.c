@@ -122,7 +122,6 @@ osaEventId_t          mAppEvent;
 
 /* The current state of the applications state machine */
 uint8_t gState;
-
 /************************************************************************************
 *************************************************************************************
 * Public functions
