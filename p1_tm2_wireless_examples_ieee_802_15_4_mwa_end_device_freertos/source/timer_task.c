@@ -5,7 +5,7 @@
  *      Author: santiagosalcedo
  */
 
-#include "MyNewTask.h"
+#include "timer_task.h"
 
 osaEventId_t mMyEvents;
 /* Global Variable to store our TimerID */
@@ -76,7 +76,7 @@ void My_Task(osaTaskParam_t argument)
 }
 
 /* Function to init the task */
-void MyTask_Init(void)
+void MyTimer_Init(void)
 {
     mMyEvents = OSA_EventCreate(TRUE);
     /* The instance of the MAC is passed at task creaton */

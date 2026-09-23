@@ -5,8 +5,8 @@
  *      Author: santiagosalcedo
  */
 
-#ifndef MYNEWTASK_H_
-#define MYNEWTASK_H_
+#ifndef TIMER_TASK_H_
+#define TIMER_TASK_H_
 
 /* Fwk */
 #include "TimersManager.h"
@@ -27,6 +27,6 @@
 
 void MyTaskTimer_Start(void);
 void MyTaskTimer_Stop(void);
-void MyTask_Init(void);
+void MyTimer_Init(void);
 
 #endif /* MYNEWTASK_H_ */

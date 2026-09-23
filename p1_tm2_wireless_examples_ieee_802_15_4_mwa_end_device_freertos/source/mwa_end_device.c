@@ -153,13 +153,6 @@ NVM_RegisterDataSet(&mAddrMode,           1,   sizeof(addrModeType_t), mAddrMode
 uint8_t gState;
 
 //variables creadas para la practica
-typedef enum{
-	OFF,
-	ON
-}t_counter_state;
-
-uint8_t time_counter;
-t_counter_state counter_state = OFF;
 /************************************************************************************
 *************************************************************************************
 * Public functions
@@ -197,6 +190,7 @@ void main_task(uint32_t param)
         Phy_Init();
         RNG_Init(); /* RNG must be initialized after the PHY is Initialized */
         MAC_Init();
+        MyTimer_Init();
 #if mEnterLowPowerWhenIdle_c
         PWR_Init();
         PWR_DisallowDeviceToSleep();
@@ -544,9 +538,8 @@ void AppThread(osaTaskParam_t argument)
                             TMR_StartLowPowerTimer(mTimer_c, gTmrSingleShotTimer_c ,mPollInterval, AppPollWaitTimeout, NULL );
                             /* Go to the listen state */
                             gState = stateListen;
-                            time_counter =0;
-                            counter_state=ON;
                             LED_TurnOnLed(LED2);
+                            MyTaskTimer_Start();
                             OSA_EventSet(mAppEvent, gAppEvtDummyEvent_c); 
                         }        
                         else 
