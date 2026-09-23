@@ -10,7 +10,7 @@
 #include "MemManager.h"
 #include "TimersManager.h"
 #include "FunctionLib.h"
-
+#include "timer_task.h"
 #if mEnterLowPowerWhenIdle_c
   #include "PWR_Interface.h"
 #endif
@@ -90,15 +90,15 @@ extern void Mac_SetExtendedAddress(uint8_t *pAddr, instanceId_t instanceId);
 OSA_TASK_DEFINE( AppThread, mAppTaskPrio_c, 1, mAppStackSize_c, FALSE );
 
 /* Information about the PAN we are part of */
-static panDescriptor_t mCoordInfo;
+panDescriptor_t mCoordInfo;
 
 /* This is either the short address assigned by the PAN coordinator
    during association, or our own extended MAC address. */
-static uint8_t maMyAddress[8];
+uint8_t maMyAddress[8];
 /* The devices address mode. If 2, then maMyAddress contains the short
    address assigned by the PAN coordinator. If 3, then maMyAddress is
    equal to the extended address. */
-static addrModeType_t mAddrMode;
+addrModeType_t mAddrMode;
 
 /* Data request packet for sending UART input to the coordinator */
 static nwkToMcpsMessage_t *mpPacket;
@@ -123,7 +123,7 @@ static anchor_t mMcpsNwkInputQueue;
 static tmrTimerID_t mTimer_c = gTmrInvalidTimerID_c;
 
 static const uint64_t mExtendedAddress  = mMacExtendedAddress_c;
-static instanceId_t   macInstance;
+instanceId_t   macInstance;
 static uint8_t        interfaceId;
 osaEventId_t          mAppEvent;
 osaTaskId_t           mAppTaskHandler;
@@ -245,27 +245,6 @@ void App_Idle_Task(uint32_t argument)
         NvIdle();
 #endif
 
-#if mEnterLowPowerWhenIdle_c
-        if( PWR_CheckIfDeviceCanGoToSleep() )
-        {
-            Serial_Print(interfaceId, "\n\rEntering in deep sleep mode...\n\r", gAllowToBlock_d);
-            wakeupReason = PWR_EnterLowPower();
-            PWR_DisallowDeviceToSleep();
-            Led1On();
-            Led2On();
-            Led3On();
-            Led4On();
-
-            if( wakeupReason.Bits.FromKeyBoard )
-            {
-                App_HandleKeys( gKBD_EventSW1_c );
-            }
-        }
-        else
-        {
-            PWR_EnterSleep();
-        }
-#endif
         if( !gUseRtos_c )
         {
             break;
@@ -1155,39 +1134,73 @@ static void    AppPollWaitTimeout(void *pData)
 * Return value: None
 *****************************************************************************/
 static void App_HandleKeys
-  (
-  key_event_t events  /*IN: Events from keyboard modul */
-  )
+(
+    key_event_t events
+)
 {
-#if gKBD_KeysCount_c > 0 
-    switch ( events ) 
-    { 
-    case gKBD_EventLongSW1_c:
-        OSA_EventSet(mAppEvent, gAppEvtPressedRestoreNvmBut_c);
-    case gKBD_EventLongSW2_c:
-    case gKBD_EventLongSW3_c:
-    case gKBD_EventLongSW4_c:
-    case gKBD_EventSW1_c:
-    case gKBD_EventSW2_c:
-    case gKBD_EventSW3_c:
-    case gKBD_EventSW4_c:
+#if gKBD_KeysCount_c > 0
+
+    switch(events)
+    {
+        case gKBD_EventLongSW1_c:
+
+            MyTask_SW3_Pressed();
+
+            break;
+
+        case gKBD_EventLongSW2_c:
+
+            MyTask_SW4_Pressed();
+
+            break;
+
+
+        case gKBD_EventSW3_c:
+
+
+            break;
+
+
+        case gKBD_EventSW4_c:
+
+
+            break;
+
+
+        case gKBD_EventLongSW3_c:
+        case gKBD_EventLongSW4_c:
+        case gKBD_EventSW1_c:
+        case gKBD_EventSW2_c:
+
 #if gTsiSupported_d
-    case gKBD_EventSW5_c:    
-    case gKBD_EventSW6_c:    
+
+        case gKBD_EventSW5_c:
+        case gKBD_EventSW6_c:
+        case gKBD_EventLongSW5_c:
+        case gKBD_EventLongSW6_c:
+
 #endif
-#if gTsiSupported_d
-    case gKBD_EventLongSW5_c:
-    case gKBD_EventLongSW6_c:       
-#endif
-        if(gState == stateInit)
-        {
-            LED_StopFlashingAllLeds();
-            OSA_EventSet(mAppEvent, gAppEvtDummyEvent_c);
-        }
+
+            if(gState == stateInit)
+            {
+                LED_StopFlashingAllLeds();
+
+                OSA_EventSet(
+                    mAppEvent,
+                    gAppEvtDummyEvent_c
+                );
+            }
+
+            break;
+
+
+        default:
+
+            break;
     }
+
 #endif
 }
-
 /******************************************************************************
 * The following functions are called by the MAC to put messages into the
 * Application's queue. They need to be defined even if they are not used
