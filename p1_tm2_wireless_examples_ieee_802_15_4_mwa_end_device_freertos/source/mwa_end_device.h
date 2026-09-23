@@ -38,7 +38,7 @@
 #ifdef gPHY_802_15_4g_d
   #define mDefaultValueOfChannel_c (0x0001FFFF)
 #else
-  #define mDefaultValueOfChannel_c (0x07FFF800)
+  #define mDefaultValueOfChannel_c (1<<15)
 #endif
 
 /* Maximum number of outstanding packets */
