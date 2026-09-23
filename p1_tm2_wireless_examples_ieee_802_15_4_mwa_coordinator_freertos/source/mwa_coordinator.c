@@ -31,6 +31,10 @@
 /* The chars will be send over the air when there are no pending packets*/
 #define mMaxKeysToReceive_c 32
 
+#define LED_BLUE    (1 << 3)   // 0x01
+#define LED_RED  (1 << 1)   // 0x02
+#define LED_GREEN   (1 << 2)   // 0x04
+
 /************************************************************************************
 *************************************************************************************
 * Private prototypes
@@ -105,6 +109,7 @@ osaEventId_t          mAppEvent;
 
 /* The current state of the applications state machine */
 uint8_t gState;
+uint8_t led_state;
 /************************************************************************************
 *************************************************************************************
 * Public functions
@@ -787,29 +792,89 @@ static uint8_t App_HandleMlmeInput(nwkMessage_t *pMsg, uint8_t appInstance)
 * messages from the MCPS, e.g. Data Confirm, and Data Indication.
 *
 ******************************************************************************/
+//static void App_HandleMcpsInput(mcpsToNwkMessage_t *pMsgIn, uint8_t appInstance)
+//{
+//  switch(pMsgIn->msgType)
+//  {
+//    /* The MCPS-Data confirm is sent by the MAC to the network
+//       or application layer when data has been sent. */
+//  case gMcpsDataCnf_c:
+//    if(mcPendingPackets)
+//      mcPendingPackets--;
+//    break;
+//
+//  case gMcpsDataInd_c:
+//    /* The MCPS-Data indication is sent by the MAC to the network
+//       or application layer when data has been received. We simply
+//       copy the received data to the UART. */
+//    Serial_SyncWrite( interfaceId,pMsgIn->msgData.dataInd.pMsdu, pMsgIn->msgData.dataInd.msduLength );
+//    break;
+//
+//  default:
+//    break;
+//  }
+//}
+
 static void App_HandleMcpsInput(mcpsToNwkMessage_t *pMsgIn, uint8_t appInstance)
 {
-  switch(pMsgIn->msgType)
-  {
-    /* The MCPS-Data confirm is sent by the MAC to the network
-       or application layer when data has been sent. */
-  case gMcpsDataCnf_c:
-    if(mcPendingPackets)
-      mcPendingPackets--;
-    break;
+    switch(pMsgIn->msgType)
+    {
+        case gMcpsDataCnf_c:
 
-  case gMcpsDataInd_c:
-    /* The MCPS-Data indication is sent by the MAC to the network
-       or application layer when data has been received. We simply
-       copy the received data to the UART. */
-    Serial_SyncWrite( interfaceId,pMsgIn->msgData.dataInd.pMsdu, pMsgIn->msgData.dataInd.msduLength );
-    break;
-    
-  default:
-    break;
-  }
+            Serial_Print(
+                interfaceId,
+                "Data Confirm received\r\n",
+                gAllowToBlock_d
+            );
+
+            break;
+
+
+        case gMcpsDataInd_c:
+
+            Serial_Print(
+                interfaceId,
+                "\r\nPacket received: ",
+                gAllowToBlock_d
+            );
+
+            Serial_SyncWrite(
+                interfaceId,
+                pMsgIn->msgData.dataInd.pMsdu,
+                pMsgIn->msgData.dataInd.msduLength
+            );
+            led_state=(uint8_t)(pMsgIn->msgData.dataInd.pMsdu[9])-0x30;
+            switch(led_state){
+            	case 0:
+            		LED_TurnOffAllLeds();
+            		LED_TurnOnLed(LED_GREEN);
+            		break;
+            	case 1:
+            		LED_TurnOffAllLeds();
+					LED_TurnOnLed(LED_RED);
+					break;
+            	case 2:
+            		LED_TurnOffAllLeds();
+					LED_TurnOnLed(LED_BLUE);
+					break;
+            	case 3:
+            		LED_TurnOffAllLeds();
+					LED_TurnOnLed(LED_BLUE);
+					LED_TurnOnLed(LED_RED);
+					break;
+            	default:
+            		break;
+            }
+
+            Serial_Print(
+                interfaceId,
+                "\r\n",
+                gAllowToBlock_d
+            );
+
+            break;
+    }
 }
-
 /******************************************************************************
 * The App_WaitMsg(nwkMessage_t *pMsg, uint8_t msgType) function does not, as
 * the name implies, wait for a message, thus blocking the execution of the
