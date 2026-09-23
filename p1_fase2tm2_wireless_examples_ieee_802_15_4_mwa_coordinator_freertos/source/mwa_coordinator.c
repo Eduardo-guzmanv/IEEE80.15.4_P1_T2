@@ -131,6 +131,7 @@ static uint16_t nextShortAdress = 0x0001;
 static int8_t FindNode(uint8_t *extendedAddress);
 static int8_t FindFreeNode(void);
 static void PrintNodeInfo(uint8_t index);
+static void PrintIncomingAddress(uint8_t *address);
 /************************************************************************************
 *************************************************************************************
 * Public functions
@@ -730,57 +731,86 @@ static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstan
     );
 
 
-    /* Extended Address of the device requesting association */
     deviceExtendedAddress =
         (uint8_t *)&pMsgIn->msgData.associateInd.deviceAddress;
 
 
-    /* Search if this device was already associated */
+    PrintIncomingAddress(deviceExtendedAddress);
+
+
     nodeIndex = FindNode(deviceExtendedAddress);
 
 
-    /* Allocate a message for the MLME */
+    if(nodeIndex >= 0)
+    {
+        uint8_t indexToPrint = (uint8_t)nodeIndex;
+
+        Serial_Print(
+            interfaceId,
+            "Node found at index: 0x",
+            gAllowToBlock_d
+        );
+
+        Serial_PrintHex(
+            interfaceId,
+            &indexToPrint,
+            1,
+            gPrtHexNoFormat_c
+        );
+
+        Serial_Print(
+            interfaceId,
+            "\n\r",
+            gAllowToBlock_d
+        );
+    }
+    else
+    {
+        Serial_Print(
+            interfaceId,
+            "Node NOT found in table.\n\r",
+            gAllowToBlock_d
+        );
+    }
+
+
     pMsg = MSG_AllocType(mlmeMessage_t);
 
     if(pMsg != NULL)
     {
-        /* This is a MLME-ASSOCIATE.res command */
         pMsg->msgType = gMlmeAssociateRes_c;
 
-        /* Create the Associate response message data */
         pAssocRes = &pMsg->msgData.associateRes;
 
 
-        /* Copy the Extended Address of the requesting device */
         FLib_MemCpy(
             &pAssocRes->deviceAddress,
             &pMsgIn->msgData.associateInd.deviceAddress,
             8
         );
 
-
-        /* =====================================================
-         * DEVICE ALREADY EXISTS
-         * ===================================================== */
-
         if(nodeIndex >= 0)
         {
-            /* Give the device the same Short Address */
+
             pAssocRes->assocShortAddress =
                 nodeTable[nodeIndex].shortAddress;
+
 
             Serial_Print(
                 interfaceId,
                 "Device already registered. Reusing Short Address.\n\r",
                 gAllowToBlock_d
             );
-            PrintNodeInfo(freeIndex);
-        }
 
+
+
+            PrintNodeInfo((uint8_t)nodeIndex);
+        }
 
         else
         {
             freeIndex = FindFreeNode();
+
 
             if(freeIndex < 0)
             {
@@ -790,14 +820,16 @@ static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstan
 
                 pAssocRes->securityLevel = gMacSecurityNone_c;
 
+
                 Serial_Print(
                     interfaceId,
                     "PAN is full. Association rejected.\n\r",
                     gAllowToBlock_d
                 );
 
+
                 if(gSuccess_c ==
-                    NWK_MLME_SapHandler(pMsg, macInstance))
+                   NWK_MLME_SapHandler(pMsg, macInstance))
                 {
                     return errorNoError;
                 }
@@ -807,17 +839,15 @@ static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstan
                 }
             }
 
-            //end device pide nueva direccion
+
             if(pMsgIn->msgData.associateInd.capabilityInfo &
                gCapInfoAllocAddr_c)
             {
-            	//cambiamos direccion sumando 1
                 pAssocRes->assocShortAddress =
                     (uint16_t)(freeIndex + 1);
             }
             else
             {
-
                 pAssocRes->assocShortAddress = 0xFFFE;
             }
 
@@ -833,7 +863,6 @@ static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstan
             );
 
 
-            /* Save RxOnWhenIdle */
             if(pMsgIn->msgData.associateInd.capabilityInfo &
                gCapInfoRxWhenIdle_c)
             {
@@ -858,16 +887,20 @@ static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstan
 
             nodeTable[freeIndex].valid = TRUE;
 
+
             Serial_Print(
                 interfaceId,
                 "New device registered.\n\r",
                 gAllowToBlock_d
             );
-            PrintNodeInfo(freeIndex);
+
+
+            PrintNodeInfo((uint8_t)freeIndex);
         }
 
 
         pAssocRes->status = gSuccess_c;
+
         pAssocRes->securityLevel = gMacSecurityNone_c;
 
 
@@ -1349,6 +1382,28 @@ static void PrintNodeInfo(uint8_t index)
     Serial_Print(
         interfaceId,
         "\n\r-----------------\n\r",
+        gAllowToBlock_d
+    );
+}
+
+static void PrintIncomingAddress(uint8_t *address)
+{
+    Serial_Print(
+        interfaceId,
+        "\n\rIncoming Extended Address: 0x",
+        gAllowToBlock_d
+    );
+
+    Serial_PrintHex(
+        interfaceId,
+        address,
+        8,
+        gPrtHexNoFormat_c
+    );
+
+    Serial_Print(
+        interfaceId,
+        "\n\r",
         gAllowToBlock_d
     );
 }
