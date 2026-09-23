@@ -1,0 +1,17 @@
+../source/mwa_end_device.c:177:6:main_task	16	static
+../source/mwa_end_device.c:235:6:App_Idle_Task	32	static
+../source/mwa_end_device.c:287:6:App_init	8	static
+../source/mwa_end_device.c:350:6:AppThread	104	static
+../source/mwa_end_device.c:645:13:UartRxCallBack	32	static
+../source/mwa_end_device.c:681:16:App_StartScan	32	static
+../source/mwa_end_device.c:744:16:App_HandleScanActiveConfirm	48	static
+../source/mwa_end_device.c:810:16:App_SendAssociateRequest	24	static
+../source/mwa_end_device.c:873:16:App_HandleAssociateConfirm	16	static
+../source/mwa_end_device.c:909:16:App_HandleMlmeInput	16	static
+../source/mwa_end_device.c:967:13:App_HandleMcpsInput	16	static
+../source/mwa_end_device.c:1005:16:App_WaitMsg	16	static
+../source/mwa_end_device.c:1035:13:App_TransmitUartData	24	static
+../source/mwa_end_device.c:1117:16:AppPollWaitTimeout	32	static
+../source/mwa_end_device.c:1157:13:App_HandleKeys	16	static
+../source/mwa_end_device.c:1197:14:MLME_NWK_SapHandler	16	static
+../source/mwa_end_device.c:1205:14:MCPS_NWK_SapHandler	16	static
