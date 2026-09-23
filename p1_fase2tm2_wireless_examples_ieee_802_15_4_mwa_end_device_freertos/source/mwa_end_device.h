@@ -26,6 +26,10 @@
 ************************************************************************************/
 
 #define mMacExtendedAddress_c      (0xFFFFFFFFFFFFFFFF)
+//#define mMacExtendedAddress_c      (0xFFFFFF1FFFFFFFFF)
+//#define mMacExtendedAddress_c      (0xFFFFFFFFFFF1FFFF)
+//#define mMacExtendedAddress_c      (0xFF1FFFFFFFFFFFFF)
+//#define mMacExtendedAddress_c      (0xFFFFFFFFFFFFFF1F)
 
 #ifndef gNvmTestActive_d
 #define gNvmTestActive_d           (0)
@@ -38,7 +42,7 @@
 #ifdef gPHY_802_15_4g_d
   #define mDefaultValueOfChannel_c (0x0001FFFF)
 #else
-  #define mDefaultValueOfChannel_c (0x07FFF800)
+  #define mDefaultValueOfChannel_c (1<<15)
 #endif
 
 /* Maximum number of outstanding packets */
