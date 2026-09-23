@@ -35,6 +35,9 @@
 #define LED_RED  (1 << 1)   // 0x02
 #define LED_GREEN   (1 << 2)   // 0x04
 
+#define MAX_NODES 5
+
+
 /************************************************************************************
 *************************************************************************************
 * Private prototypes
@@ -110,6 +113,24 @@ osaEventId_t          mAppEvent;
 /* The current state of the applications state machine */
 uint8_t gState;
 uint8_t led_state;
+
+typedef struct{
+    uint16_t shortAddress;
+    uint8_t extendedAddress[8];
+    bool_t rxOnWhenIdle;
+    bool_t valid;
+    bool_t deviceType;
+
+} nodeInfo_t;
+
+static nodeInfo_t nodeTable[MAX_NODES];
+
+static uint8_t nodeCount = 0;
+static uint16_t nextShortAdress = 0x0001;
+
+static int8_t FindNode(uint8_t *extendedAddress);
+static int8_t FindFreeNode(void);
+static void PrintNodeInfo(uint8_t index);
 /************************************************************************************
 *************************************************************************************
 * Public functions
@@ -693,67 +714,208 @@ static uint8_t App_StartCoordinator( uint8_t appInstance )
 ******************************************************************************/
 static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstance)
 {
-  mlmeMessage_t *pMsg;
-  mlmeAssociateRes_t *pAssocRes;
- 
-  Serial_Print(interfaceId,"Sending the MLME-Associate Response message to the MAC...", gAllowToBlock_d);
- 
-  /* Allocate a message for the MLME */
-  pMsg = MSG_AllocType(mlmeMessage_t);
-  if(pMsg != NULL)
-  {
-    /* This is a MLME-ASSOCIATE.res command */
-    pMsg->msgType = gMlmeAssociateRes_c;
+    mlmeMessage_t *pMsg;
+    mlmeAssociateRes_t *pAssocRes;
 
-    /* Create the Associate response message data. */
-    pAssocRes = &pMsg->msgData.associateRes;
+    int8_t nodeIndex;
+    int8_t freeIndex;
 
-    /* Assign a short address to the device. In this example we simply
-       choose 0x0001. Though, all devices and coordinators in a PAN must have
-       different short addresses. However, if a device do not want to use
-       short addresses at all in the PAN, a short address of 0xFFFE must
-       be assigned to it. */
-    if(pMsgIn->msgData.associateInd.capabilityInfo & gCapInfoAllocAddr_c)
+    uint8_t *deviceExtendedAddress;
+
+
+    Serial_Print(
+        interfaceId,
+        "Sending the MLME-Associate Response message to the MAC...",
+        gAllowToBlock_d
+    );
+
+
+    /* Extended Address of the device requesting association */
+    deviceExtendedAddress =
+        (uint8_t *)&pMsgIn->msgData.associateInd.deviceAddress;
+
+
+    /* Search if this device was already associated */
+    nodeIndex = FindNode(deviceExtendedAddress);
+
+
+    /* Allocate a message for the MLME */
+    pMsg = MSG_AllocType(mlmeMessage_t);
+
+    if(pMsg != NULL)
     {
-      /* Assign a unique short address less than 0xfffe if the device requests so. */
-      pAssocRes->assocShortAddress = 0x0001;
+        /* This is a MLME-ASSOCIATE.res command */
+        pMsg->msgType = gMlmeAssociateRes_c;
+
+        /* Create the Associate response message data */
+        pAssocRes = &pMsg->msgData.associateRes;
+
+
+        /* Copy the Extended Address of the requesting device */
+        FLib_MemCpy(
+            &pAssocRes->deviceAddress,
+            &pMsgIn->msgData.associateInd.deviceAddress,
+            8
+        );
+
+
+        /* =====================================================
+         * DEVICE ALREADY EXISTS
+         * ===================================================== */
+
+        if(nodeIndex >= 0)
+        {
+            /* Give the device the same Short Address */
+            pAssocRes->assocShortAddress =
+                nodeTable[nodeIndex].shortAddress;
+
+            Serial_Print(
+                interfaceId,
+                "Device already registered. Reusing Short Address.\n\r",
+                gAllowToBlock_d
+            );
+            PrintNodeInfo(freeIndex);
+        }
+
+
+        else
+        {
+            freeIndex = FindFreeNode();
+
+            if(freeIndex < 0)
+            {
+                pAssocRes->assocShortAddress = 0xFFFF;
+
+                pAssocRes->status = gPanAtCapacity_c;
+
+                pAssocRes->securityLevel = gMacSecurityNone_c;
+
+                Serial_Print(
+                    interfaceId,
+                    "PAN is full. Association rejected.\n\r",
+                    gAllowToBlock_d
+                );
+
+                if(gSuccess_c ==
+                    NWK_MLME_SapHandler(pMsg, macInstance))
+                {
+                    return errorNoError;
+                }
+                else
+                {
+                    return errorInvalidParameter;
+                }
+            }
+
+            //end device pide nueva direccion
+            if(pMsgIn->msgData.associateInd.capabilityInfo &
+               gCapInfoAllocAddr_c)
+            {
+            	//cambiamos direccion sumando 1
+                pAssocRes->assocShortAddress =
+                    (uint16_t)(freeIndex + 1);
+            }
+            else
+            {
+
+                pAssocRes->assocShortAddress = 0xFFFE;
+            }
+
+
+            nodeTable[freeIndex].shortAddress =
+                pAssocRes->assocShortAddress;
+
+
+            FLib_MemCpy(
+                nodeTable[freeIndex].extendedAddress,
+                deviceExtendedAddress,
+                8
+            );
+
+
+            /* Save RxOnWhenIdle */
+            if(pMsgIn->msgData.associateInd.capabilityInfo &
+               gCapInfoRxWhenIdle_c)
+            {
+                nodeTable[freeIndex].rxOnWhenIdle = TRUE;
+            }
+            else
+            {
+                nodeTable[freeIndex].rxOnWhenIdle = FALSE;
+            }
+
+
+            if(pMsgIn->msgData.associateInd.capabilityInfo &
+               gCapInfoDeviceFfd_c)
+            {
+                nodeTable[freeIndex].deviceType = TRUE;
+            }
+            else
+            {
+                nodeTable[freeIndex].deviceType = FALSE;
+            }
+
+
+            nodeTable[freeIndex].valid = TRUE;
+
+            Serial_Print(
+                interfaceId,
+                "New device registered.\n\r",
+                gAllowToBlock_d
+            );
+            PrintNodeInfo(freeIndex);
+        }
+
+
+        pAssocRes->status = gSuccess_c;
+        pAssocRes->securityLevel = gMacSecurityNone_c;
+
+
+        FLib_MemCpy(
+            &mDeviceShortAddress,
+            &pAssocRes->assocShortAddress,
+            2
+        );
+
+        FLib_MemCpy(
+            &mDeviceLongAddress,
+            &pAssocRes->deviceAddress,
+            8
+        );
+
+
+        if(gSuccess_c ==
+           NWK_MLME_SapHandler(pMsg, macInstance))
+        {
+            Serial_Print(
+                interfaceId,
+                "Done\n\r",
+                gAllowToBlock_d
+            );
+
+            return errorNoError;
+        }
+        else
+        {
+            Serial_Print(
+                interfaceId,
+                "Invalid parameter!\n\r",
+                gAllowToBlock_d
+            );
+
+            return errorInvalidParameter;
+        }
     }
     else
     {
-      /* A short address of 0xfffe means that the device is granted access to
-         the PAN (Associate successful) but that long addressing is used.*/
-      pAssocRes->assocShortAddress = 0xFFFE;
-    }
-    /* Get the 64 bit address of the device requesting association. */
-    FLib_MemCpy(&pAssocRes->deviceAddress, &pMsgIn->msgData.associateInd.deviceAddress, 8);
-    /* Association granted. May also be gPanAtCapacity_c or gPanAccessDenied_c. */
-    pAssocRes->status = gSuccess_c;
-    /* Do not use security */
-    pAssocRes->securityLevel = gMacSecurityNone_c;
+        Serial_Print(
+            interfaceId,
+            "Message allocation failed!\n\r",
+            gAllowToBlock_d
+        );
 
-    /* Save device info. */
-    FLib_MemCpy(&mDeviceShortAddress, &pAssocRes->assocShortAddress, 2);
-    FLib_MemCpy(&mDeviceLongAddress,  &pAssocRes->deviceAddress,     8);
-    
-    /* Send the Associate Response to the MLME. */
-    if( gSuccess_c == NWK_MLME_SapHandler( pMsg, macInstance ) )
-    {
-      Serial_Print( interfaceId,"Done\n\r", gAllowToBlock_d );
-      return errorNoError;
+        return errorAllocFailed;
     }
-    else
-    {
-      /* One or more parameters in the message were invalid. */
-      Serial_Print( interfaceId,"Invalid parameter!\n\r", gAllowToBlock_d );
-      return errorInvalidParameter;
-    }
-  }
-  else
-  {
-    /* Allocation of a message buffer failed. */
-    Serial_Print(interfaceId,"Message allocation failed!\n\r", gAllowToBlock_d);
-    return errorAllocFailed;
-  }
 }
 
 /******************************************************************************
@@ -774,6 +936,7 @@ static uint8_t App_HandleMlmeInput(nwkMessage_t *pMsg, uint8_t appInstance)
   case gMlmeAssociateInd_c:
     Serial_Print(interfaceId,"Received an MLME-Associate Indication from the MAC\n\r", gAllowToBlock_d);
     /* A device sent us an Associate Request. We must send back a response.  */
+
     return App_SendAssociateResponse(pMsg, appInstance);
     
   case gMlmeCommStatusInd_c:
@@ -1043,4 +1206,149 @@ resultType_t MCPS_NWK_SapHandler (mcpsToNwkMessage_t* pMsg, instanceId_t instanc
   MSG_Queue(&mMcpsNwkInputQueue, pMsg);
   OSA_EventSet(mAppEvent, gAppEvtMessageFromMCPS_c);
   return gSuccess_c;
+}
+
+static int8_t FindNode(uint8_t *extendedAddress)
+{
+    uint8_t i;
+    uint8_t j;
+    bool_t equal;
+
+    for(i = 0; i < MAX_NODES; i++)
+    {
+        if(nodeTable[i].valid)
+        {
+            equal = TRUE;
+
+            for(j = 0; j < 8; j++)
+            {
+                if(nodeTable[i].extendedAddress[j] != extendedAddress[j])
+                {
+                    equal = FALSE;
+                    break;
+                }
+            }
+
+            if(equal)
+            {
+                return i;
+            }
+        }
+    }
+
+    return -1;
+}
+
+
+static int8_t FindFreeNode(void)
+{
+    uint8_t i;
+    for(i = 0; i < MAX_NODES; i++)
+    {
+        if(!nodeTable[i].valid)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void PrintNodeInfo(uint8_t index)
+{
+    Serial_Print(
+        interfaceId,
+        "\n\r--- NODE INFO ---\n\r",
+        gAllowToBlock_d
+    );
+
+    Serial_Print(
+        interfaceId,
+        "Index: 0x",
+        gAllowToBlock_d
+    );
+
+    Serial_PrintHex(
+        interfaceId,
+        &index,
+        1,
+        gPrtHexNoFormat_c
+    );
+
+    Serial_Print(
+        interfaceId,
+        "\n\rShort Address: 0x",
+        gAllowToBlock_d
+    );
+
+    Serial_PrintHex(
+        interfaceId,
+        (uint8_t *)&nodeTable[index].shortAddress,
+        2,
+        gPrtHexNoFormat_c
+    );
+
+    Serial_Print(
+        interfaceId,
+        "\n\rExtended Address: 0x",
+        gAllowToBlock_d
+    );
+
+    Serial_PrintHex(
+        interfaceId,
+        nodeTable[index].extendedAddress,
+        8,
+        gPrtHexNoFormat_c
+    );
+
+    Serial_Print(
+        interfaceId,
+        "\n\rRxOnWhenIdle: ",
+        gAllowToBlock_d
+    );
+
+    if(nodeTable[index].rxOnWhenIdle)
+    {
+        Serial_Print(
+            interfaceId,
+            "TRUE",
+            gAllowToBlock_d
+        );
+    }
+    else
+    {
+        Serial_Print(
+            interfaceId,
+            "FALSE",
+            gAllowToBlock_d
+        );
+    }
+
+    Serial_Print(
+        interfaceId,
+        "\n\rDevice Type: ",
+        gAllowToBlock_d
+    );
+
+    if(nodeTable[index].deviceType)
+    {
+        Serial_Print(
+            interfaceId,
+            "FFD",
+            gAllowToBlock_d
+        );
+    }
+    else
+    {
+        Serial_Print(
+            interfaceId,
+            "RFD",
+            gAllowToBlock_d
+        );
+    }
+
+    Serial_Print(
+        interfaceId,
+        "\n\r-----------------\n\r",
+        gAllowToBlock_d
+    );
 }

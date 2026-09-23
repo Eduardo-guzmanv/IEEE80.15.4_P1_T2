@@ -27,18 +27,18 @@
 ************************************************************************************/
 #ifdef gPHY_802_15_4g_d
   #define mDefaultValueOfChannel_c (0x0001FFFF)
-  #define mDefaultMaxChannel_c     (0x11)
+  #define mDefaultMaxChannel_c     (0xF)
 #else
-  #define mDefaultValueOfChannel_c (0x07FFF800)
+  #define mDefaultValueOfChannel_c (1<<15) // canal elegido por el equipo
 #endif
 
-#define mMacExtendedAddress_c    (0x1111111111111111)
+#define mMacExtendedAddress_c    (0x0000)
 
 /* Set the Coordinator short address */ 
 #define mDefaultValueOfShortAddress_c     0xCAFE
 
 /* Set the Coordinator PanID */ 
-#define mDefaultValueOfPanId_c            0xBEEF
+#define mDefaultValueOfPanId_c            0x2222
 
 /* Maximum number of outstanding packets */
 #define mDefaultValueOfMaxPendingDataPackets_c 2
