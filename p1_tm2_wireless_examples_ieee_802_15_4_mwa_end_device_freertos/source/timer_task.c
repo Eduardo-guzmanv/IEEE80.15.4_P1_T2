@@ -14,9 +14,19 @@ tmrTimerID_t myTimerID = gTmrInvalidTimerID_c;
 /* Handler ID for task */
 osaTaskId_t gMyTaskHandler_ID;
 
-/* Local variable to store the current state of the LEDs */
-static uint8_t ledsState = 0;
+/*
+        #define gRedLedIdx_c                    0
+        #define gGreenLedIdx_c                  1
+        #define gBlueLedIdx_c                   2
+ * */
+typedef enum {
+	GREEN,
+	RED,
+	BLUE,
+	MAGENTA
+}t_LED_color;
 
+t_LED_color color;
 /* Forward declarations */
 void My_Task(osaTaskParam_t argument);
 static void myTaskTimerCallback(void *param);
@@ -43,28 +53,47 @@ void My_Task(osaTaskParam_t argument)
         /* Depending on the received event */
         switch(customEvent){
         case gMyNewTaskEvent1_c:
+        	color=GREEN;
             TMR_StartIntervalTimer(myTimerID,           /*myTimerID*/
                                    1000,                /* Timer's Timeout */
                                    myTaskTimerCallback, /* pointer to
                                    myTaskTimerCallback function */
                                    NULL
             );
-            TurnOffLeds(); /* Ensure all LEDs are turned off */
+            TurnOffLeds();
+            LED_TurnOnLed(1);
             break;
 
         case gMyNewTaskEvent2_c: /* Event called from myTaskTimerCallback */
-            if(!ledsState) {
-                TurnOnLeds();
-                ledsState = 1;
+            TurnOffLeds();
+            if(color != MAGENTA){
+            	color +=1;
             }
-            else {
-                TurnOffLeds();
-                ledsState = 0;
+            else{
+            	color = GREEN;
+            }
+            switch(color){
+            	case GREEN:
+            		TurnOffLeds();
+					LED_TurnOnLed(1);
+            		break;
+            	case RED:
+            		TurnOffLeds();
+					LED_TurnOnLed(0);
+					break;
+            	case BLUE:
+            		TurnOffLeds();
+					LED_TurnOnLed(2);
+					break;
+            	case MAGENTA:
+            		TurnOffLeds();
+					LED_TurnOnLed(0);
+					LED_TurnOnLed(2);
+					break;
             }
             break;
 
         case gMyNewTaskEvent3_c: /* Event to stop the timer */
-            ledsState = 0;
             TurnOffLeds();
             TMR_StopTimer(myTimerID);
             break;
