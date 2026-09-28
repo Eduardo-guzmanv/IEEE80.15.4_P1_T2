@@ -25,11 +25,14 @@
 *************************************************************************************
 ************************************************************************************/
 
-#define mMacExtendedAddress_c      (0xFFFFFFFFFFFFFFFF)
-//#define mMacExtendedAddress_c      (0xFFFFFF1FFFFFFFFF)
-//#define mMacExtendedAddress_c      (0xFFFFFFFFFFF1FFFF)
-//#define mMacExtendedAddress_c      (0xFF1FFFFFFFFFFFFF)
-//#define mMacExtendedAddress_c      (0xFFFFFFFFFFFFFF1F)
+//#define mMacExtendedAddress_c      (0x0000000000000001)
+//#define mMacExtendedAddress_c      (0x0000000000000020)
+//#define mMacExtendedAddress_c      (0x0000000000000300)
+//#define mMacExtendedAddress_c      (0x0000000000004000)
+//#define mMacExtendedAddress_c      (0x0000000000050000)
+//#define mMacExtendedAddress_c      (0x0000000000600000)
+#define mMacExtendedAddress_c      (0x0000000007000000)
+
 
 #ifndef gNvmTestActive_d
 #define gNvmTestActive_d           (0)
