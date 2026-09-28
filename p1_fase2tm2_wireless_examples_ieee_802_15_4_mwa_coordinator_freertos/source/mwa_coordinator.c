@@ -35,9 +35,9 @@
 #define LED_RED  (1 << 1)   // 0x02
 #define LED_GREEN   (1 << 2)   // 0x04
 
-#define MAX_NODES 5
-
-
+#define MAX_NODES 4
+#define NODE_TIMEOUT_MS 10000
+#define MAX_KNOWN_NODES 10
 /************************************************************************************
 *************************************************************************************
 * Private prototypes
@@ -120,7 +120,7 @@ typedef struct{
     bool_t rxOnWhenIdle;
     bool_t valid;
     bool_t deviceType;
-
+    uint32_t lastRx;
 } nodeInfo_t;
 
 static nodeInfo_t nodeTable[MAX_NODES];
@@ -132,6 +132,28 @@ static int8_t FindNode(uint8_t *extendedAddress);
 static int8_t FindFreeNode(void);
 static void PrintNodeInfo(uint8_t index);
 static void PrintIncomingAddress(uint8_t *address);
+
+typedef struct
+{
+    bool_t valid;
+    uint8_t extendedAddress[8];
+    uint16_t shortAddress;
+
+} knownNode_t;
+
+static knownNode_t knownNodes[MAX_KNOWN_NODES] = {0};
+
+static int8_t FindKnownNode(uint8_t *extendedAddress);
+
+static int8_t AddKnownNode(
+    uint8_t *extendedAddress,
+    uint16_t shortAddress
+);
+
+static int8_t FindNodeByShort(uint16_t shortAddress);
+
+static void CheckDisconnectedNodes(void);
+
 /************************************************************************************
 *************************************************************************************
 * Public functions
@@ -723,6 +745,7 @@ static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstan
 
     uint8_t *deviceExtendedAddress;
 
+    static uint16_t nextShortAddress = 1;
 
     Serial_Print(
         interfaceId,
@@ -809,8 +832,50 @@ static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstan
 
         else
         {
+
+        	deviceExtendedAddress = (uint8_t *)&pMsgIn->msgData.associateInd.deviceAddress;
+        	CheckDisconnectedNodes();
+        	nodeIndex = FindNode(deviceExtendedAddress);
+
             freeIndex = FindFreeNode();
 
+            int8_t knownIndex;
+
+            knownIndex =
+                FindKnownNode(deviceExtendedAddress);
+
+
+            if(knownIndex >= 0)
+            {
+                pAssocRes->assocShortAddress =
+                    knownNodes[knownIndex].shortAddress;
+
+                Serial_Print(
+                    interfaceId,
+                    "Known device reconnecting. Restoring Short Address.\n\r",
+                    gAllowToBlock_d
+                );
+            }
+            else
+            {
+                pAssocRes->assocShortAddress =
+                    nextShortAddress;
+
+                nextShortAddress++;
+
+
+                AddKnownNode(
+                    deviceExtendedAddress,
+                    pAssocRes->assocShortAddress
+                );
+
+
+                Serial_Print(
+                    interfaceId,
+                    "Completely new device. New Short Address assigned.\n\r",
+                    gAllowToBlock_d
+                );
+            }
 
             if(freeIndex < 0)
             {
@@ -887,7 +952,7 @@ static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstan
 
             nodeTable[freeIndex].valid = TRUE;
 
-
+            nodeTable[freeIndex].lastRx = OSA_TimeGetMsec();
             Serial_Print(
                 interfaceId,
                 "New device registered.\n\r",
@@ -1017,22 +1082,22 @@ static void App_HandleMcpsInput(mcpsToNwkMessage_t *pMsgIn, uint8_t appInstance)
     {
         case gMcpsDataCnf_c:
 
-            Serial_Print(
-                interfaceId,
-                "Data Confirm received\r\n",
-                gAllowToBlock_d
-            );
+//            Serial_Print(
+//                interfaceId,
+//                "Data Confirm received\r\n",
+//                gAllowToBlock_d
+//            );
 
             break;
 
 
         case gMcpsDataInd_c:
 
-            Serial_Print(
-                interfaceId,
-                "\r\nPacket received: ",
-                gAllowToBlock_d
-            );
+//            Serial_Print(
+//                interfaceId,
+//                "\r\nPacket received: ",
+//                gAllowToBlock_d
+//            );
 
             Serial_SyncWrite(
                 interfaceId,
@@ -1068,6 +1133,22 @@ static void App_HandleMcpsInput(mcpsToNwkMessage_t *pMsgIn, uint8_t appInstance)
                 gAllowToBlock_d
             );
 
+            uint16_t sourceShortAddress = 0;
+
+            FLib_MemCpy(
+                &sourceShortAddress,
+                &pMsgIn->msgData.dataInd.srcAddr,
+                2
+            );
+
+            int8_t rxNodeIndex =
+                FindNodeByShort(sourceShortAddress);
+
+            if(rxNodeIndex >= 0)
+            {
+                nodeTable[rxNodeIndex].lastRx =
+                    OSA_TimeGetMsec();
+            }
             break;
     }
 }
@@ -1406,4 +1487,112 @@ static void PrintIncomingAddress(uint8_t *address)
         "\n\r",
         gAllowToBlock_d
     );
+}
+
+static void CheckDisconnectedNodes(void)
+{
+    uint8_t i;
+
+    uint32_t now =
+        OSA_TimeGetMsec();
+
+    for(i = 0; i < MAX_NODES; i++)
+    {
+        if(nodeTable[i].valid == TRUE)
+        {
+            if(nodeTable[i].lastRx != 0U)
+            {
+                if((uint32_t)
+                   (now - nodeTable[i].lastRx)
+                   > NODE_TIMEOUT_MS)
+                {
+                    Serial_Print(
+                        interfaceId,
+                        "\n\rDevice disconnected. Freeing slot.\n\r",
+                        gAllowToBlock_d
+                    );
+
+                    PrintNodeInfo(i);
+
+                    nodeTable[i].valid = FALSE;
+                }
+            }
+        }
+    }
+}
+
+static int8_t FindKnownNode(uint8_t *extendedAddress)
+{
+    uint8_t i;
+    uint8_t j;
+    bool_t equal;
+
+    for(i = 0; i < MAX_KNOWN_NODES; i++)
+    {
+        if(knownNodes[i].valid == TRUE)
+        {
+            equal = TRUE;
+
+            for(j = 0; j < 8; j++)
+            {
+                if(knownNodes[i].extendedAddress[j] != extendedAddress[j])
+                {
+                    equal = FALSE;
+                    break;
+                }
+            }
+
+            if(equal == TRUE)
+            {
+                return (int8_t)i;
+            }
+        }
+    }
+
+    return -1;
+}
+
+
+static int8_t AddKnownNode(
+    uint8_t *extendedAddress,
+    uint16_t shortAddress)
+{
+    uint8_t i;
+
+    for(i = 0; i < MAX_KNOWN_NODES; i++)
+    {
+        if(knownNodes[i].valid == FALSE)
+        {
+            FLib_MemCpy(
+                knownNodes[i].extendedAddress,
+                extendedAddress,
+                8
+            );
+
+            knownNodes[i].shortAddress = shortAddress;
+
+            knownNodes[i].valid = TRUE;
+
+            return (int8_t)i;
+        }
+    }
+
+    return -1;
+}
+
+
+static int8_t FindNodeByShort(uint16_t shortAddress)
+{
+    uint8_t i;
+
+    for(i = 0; i < MAX_NODES; i++)
+    {
+        if(nodeTable[i].valid == TRUE &&
+           nodeTable[i].shortAddress == shortAddress)
+        {
+            return (int8_t)i;
+        }
+    }
+
+    return -1;
 }

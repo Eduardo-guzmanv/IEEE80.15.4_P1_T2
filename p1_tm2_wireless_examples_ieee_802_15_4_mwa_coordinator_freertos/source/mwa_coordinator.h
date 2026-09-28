@@ -35,7 +35,7 @@
 #define mMacExtendedAddress_c    (0x0000)
 
 /* Set the Coordinator short address */ 
-#define mDefaultValueOfShortAddress_c     0xCAFE
+#define mDefaultValueOfShortAddress_c     0x0000
 
 /* Set the Coordinator PanID */ 
 #define mDefaultValueOfPanId_c            0x2222
